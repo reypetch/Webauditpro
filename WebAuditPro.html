@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebAudit Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0f; --bg2:#111118; --bg3:#1a1a24; --bg4:#22222e;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --text:#f0f0f8; --text2:#9090a8; --text3:#5a5a72;
+  --accent:#7c6fff; --accent2:#5b4fd4;
+  --green:#2dcc8f; --red:#ff5c5c; --orange:#ff8c42; --blue:#4ecdc4;
+  --mono:'DM Mono',monospace; --head:'Syne',sans-serif; --body:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:15px;min-height:100vh}
+
+/* HEADER */
+.header{border-bottom:1px solid var(--border);padding:18px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(10,10,15,0.97);backdrop-filter:blur(16px);z-index:100;gap:16px;flex-wrap:wrap}
+.logo{font-family:var(--head);font-weight:800;font-size:20px;letter-spacing:-0.5px;display:flex;align-items:center;gap:10px}
+.logo-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.header-right{display:flex;align-items:center;gap:10px}
+.api-key-wrap{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:6px 12px}
+.api-key-wrap input{background:none;border:none;outline:none;font-family:var(--mono);font-size:12px;color:var(--text2);width:220px}
+.api-key-wrap input::placeholder{color:var(--text3)}
+.api-key-label{font-family:var(--mono);font-size:11px;color:var(--text3);white-space:nowrap}
+.api-status{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
+.api-status.ok{background:var(--green)}
+.api-status.err{background:var(--red)}
+.header-tag{font-family:var(--mono);font-size:11px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);padding:4px 10px;border-radius:20px;white-space:nowrap}
+
+/* MAIN */
+.container{max-width:1100px;margin:0 auto;padding:36px 32px}
+
+/* API KEY BANNER */
+.key-banner{background:rgba(124,111,255,0.07);border:1px solid rgba(124,111,255,0.25);border-radius:12px;padding:16px 20px;margin-bottom:28px;display:flex;align-items:flex-start;gap:14px}
+.key-banner-icon{font-size:20px;flex-shrink:0}
+.key-banner-text h3{font-family:var(--head);font-size:14px;font-weight:600;margin-bottom:4px}
+.key-banner-text p{font-size:13px;color:var(--text2);line-height:1.6}
+.key-banner-text a{color:var(--accent);text-decoration:none}
+.key-banner-text a:hover{text-decoration:underline}
+.key-banner.hidden{display:none}
+
+/* SEARCH BAR */
+.search-bar{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:6px 6px 6px 20px;display:flex;align-items:center;gap:10px;margin-bottom:20px;transition:border-color .2s}
+.search-bar:focus-within{border-color:var(--accent)}
+.search-bar input{flex:1;background:none;border:none;outline:none;font-family:var(--mono);font-size:14px;color:var(--text)}
+.search-bar input::placeholder{color:var(--text3)}
+.btn-analyze{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px 26px;font-family:var(--head);font-weight:600;font-size:14px;cursor:pointer;transition:background .2s,transform .1s;white-space:nowrap}
+.btn-analyze:hover{background:var(--accent2)}
+.btn-analyze:active{transform:scale(0.97)}
+.btn-analyze:disabled{background:var(--bg4);color:var(--text3);cursor:not-allowed}
+
+/* CHECKS */
+.checks-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin-bottom:28px}
+.check-item{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .2s,background .2s;user-select:none}
+.check-item:hover{border-color:var(--border2);background:var(--bg3)}
+.check-item.active{border-color:var(--accent);background:rgba(124,111,255,0.07)}
+.check-dot{width:16px;height:16px;border-radius:4px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:#fff;transition:background .2s}
+.check-item.active .check-dot{background:var(--accent);border-color:var(--accent)}
+.check-label{font-size:13px;color:var(--text2)}
+.check-item.active .check-label{color:var(--text)}
+
+/* STATUS */
+.status-bar{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:none;align-items:center;gap:14px;margin-bottom:28px}
+.spinner{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.status-text{font-family:var(--mono);font-size:12px;color:var(--text2)}
+.step-list{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.step-pill{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+.step-pill.done{background:rgba(45,204,143,.1);color:var(--green);border-color:rgba(45,204,143,.2)}
+.step-pill.active{background:rgba(124,111,255,.12);color:var(--accent);border-color:rgba(124,111,255,.25)}
+
+/* RESULTS */
+.results-area{display:none}
+.scores-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:24px}
+.score-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px 14px;text-align:center}
+.score-num{font-family:var(--head);font-size:32px;font-weight:800;line-height:1;margin-bottom:4px}
+.score-label{font-size:11px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase}
+.c-green{color:var(--green)}.c-orange{color:var(--orange)}.c-red{color:var(--red)}
+
+.section-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.section-header{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:12px}
+.section-header:hover{background:var(--bg3)}
+.section-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.section-icon{font-size:17px}
+.section-title{font-family:var(--head);font-weight:600;font-size:15px}
+.section-badge{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:20px}
+.badge-good{background:rgba(45,204,143,.12);color:var(--green);border:1px solid rgba(45,204,143,.2)}
+.badge-warning{background:rgba(255,140,66,.12);color:var(--orange);border:1px solid rgba(255,140,66,.2)}
+.badge-poor,.badge-bad{background:rgba(255,92,92,.12);color:var(--red);border:1px solid rgba(255,92,92,.2)}
+.badge-info{background:rgba(78,205,196,.12);color:var(--blue);border:1px solid rgba(78,205,196,.2)}
+.section-toggle{color:var(--text3);font-size:20px;width:24px;text-align:center;flex-shrink:0}
+.section-body{padding:20px;border-top:1px solid var(--border);display:none}
+.section-body.open{display:block}
+.finding{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.finding:last-child{border-bottom:none}
+.finding-icon{font-size:14px;flex-shrink:0;margin-top:2px}
+.finding-content{flex:1}
+.finding-title{font-weight:500;font-size:14px;margin-bottom:4px}
+.finding-desc{font-size:13px;color:var(--text2);line-height:1.6}
+.finding-fix{margin-top:8px;background:var(--bg3);border-left:2px solid var(--accent);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:var(--text2);font-family:var(--mono);line-height:1.6}
+
+/* TABS */
+.tab-bar{display:flex;gap:2px;background:var(--bg3);border-radius:10px;padding:4px;margin-bottom:24px}
+.tab-btn{flex:1;background:none;border:none;color:var(--text3);font-family:var(--body);font-size:13px;font-weight:500;padding:9px 16px;border-radius:7px;cursor:pointer;transition:background .2s,color .2s}
+.tab-btn.active{background:var(--bg);color:var(--text)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* HERO */
+.hero-score{display:flex;align-items:center;gap:32px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:20px;flex-wrap:wrap}
+.ring-wrap{flex-shrink:0;position:relative;width:100px;height:100px}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.ring-num{font-family:var(--head);font-size:26px;font-weight:800}
+.ring-sub{font-size:10px;color:var(--text3);letter-spacing:.08em}
+.hero-info h2{font-family:var(--head);font-size:20px;font-weight:700;margin-bottom:6px}
+
+/* REPORT */
+.report-section{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:16px}
+.report-title{font-family:var(--head);font-weight:700;font-size:20px;margin-bottom:4px}
+.report-sub{font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:20px}
+.report-body{font-size:14px;line-height:1.9;color:var(--text2);white-space:pre-wrap}
+.btn-copy{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:9px 18px;font-family:var(--mono);font-size:12px;cursor:pointer;margin-top:16px;transition:background .2s}
+.btn-copy:hover{background:var(--bg4);color:var(--text)}
+
+/* EMPTY */
+.empty-state{text-align:center;padding:64px 20px;color:var(--text3)}
+.empty-state h3{font-family:var(--head);font-size:18px;color:var(--text2);margin-bottom:8px}
+.empty-state p{font-size:13px;line-height:1.7;max-width:400px;margin:0 auto}
+
+/* ERROR */
+.error-box{background:rgba(255,92,92,0.07);border:1px solid rgba(255,92,92,0.25);border-radius:12px;padding:16px 20px;margin-bottom:20px;font-size:13px;color:var(--red);display:none;line-height:1.6}
+
+@media(max-width:680px){
+  .container{padding:24px 16px}
+  .header{padding:14px 16px}
+  .api-key-wrap input{width:140px}
+  .hero-score{flex-direction:column;gap:16px}
+  .checks-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo"><div class="logo-dot"></div>WebAudit Pro</div>
+  <div class="header-right">
+    <div class="api-key-wrap">
+      <div class="api-status" id="apiDot"></div>
+      <span class="api-key-label">API Key:</span>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." onchange="saveKey()" oninput="validateKey()" autocomplete="off" />
+    </div>
+    <div class="header-tag">v2.1</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- BANNER -->
+  <div class="key-banner" id="keyBanner">
+    <div class="key-banner-icon">🔑</div>
+    <div class="key-banner-text">
+      <h3>Anthropic API Key Required</h3>
+      <p>Paste your API key in the top-right field to get started. Get one free at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Your key is stored only in your browser (localStorage) and never sent anywhere except directly to Anthropic.</p>
+    </div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="error-box" id="errorBox"></div>
+
+  <!-- URL INPUT -->
+  <div class="search-bar">
+    <span style="color:var(--text3);font-family:var(--mono);font-size:13px;flex-shrink:0">https://</span>
+    <input type="text" id="urlInput" placeholder="yourtarget.com" />
+    <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">Analyze →</button>
+  </div>
+
+  <!-- CHECK FILTERS -->
+  <div class="checks-grid">
+    <div class="check-item active" data-key="seo" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">🔍 SEO &amp; Meta</span></div>
+    <div class="check-item active" data-key="performance" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">⚡ Performance</span></div>
+    <div class="check-item active" data-key="security" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">🔒 Security</span></div>
+    <div class="check-item active" data-key="ux" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">🎨 UX &amp; Design</span></div>
+    <div class="check-item active" data-key="tech" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">⚙️ Tech Stack</span></div>
+    <div class="check-item active" data-key="content" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">📝 Content</span></div>
+    <div class="check-item active" data-key="leak" onclick="toggleCheck(this)"><div class="check-dot">✓</div><span class="check-label">🚨 Data Leak</span></div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status-bar" id="statusBar">
+    <div class="spinner"></div>
+    <span class="status-text" id="statusText">Starting…</span>
+    <div class="step-list" id="stepList"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-area" id="resultsArea">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('audit')">Audit Report</button>
+      <button class="tab-btn" onclick="switchTab('summary')">Quick Summary</button>
+      <button class="tab-btn" onclick="switchTab('proposal')">Client Proposal</button>
+    </div>
+    <div class="tab-panel active" id="tab-audit">
+      <div class="hero-score" id="heroScore"></div>
+      <div class="scores-grid" id="scoresGrid"></div>
+      <div id="sectionsContainer"></div>
+    </div>
+    <div class="tab-panel" id="tab-summary">
+      <div class="report-section">
+        <div class="report-title">Executive Summary</div>
+        <div class="report-sub" id="summaryMeta"></div>
+        <div class="report-body" id="summaryBody"></div>
+        <button class="btn-copy" onclick="copyText('summaryBody')">📋 Copy Summary</button>
+      </div>
+    </div>
+    <div class="tab-panel" id="tab-proposal">
+      <div class="report-section">
+        <div class="report-title">Professional Client Proposal</div>
+        <div class="report-sub" id="proposalMeta"></div>
+        <div class="report-body" id="proposalBody"></div>
+        <button class="btn-copy" onclick="copyText('proposalBody')">📋 Copy Proposal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMPTY STATE -->
+  <div class="empty-state" id="emptyState">
+    <div style="font-size:48px;margin-bottom:16px">🔎</div>
+    <h3>Ready to audit any website</h3>
+    <p>Add your API key above, enter a URL, and get a full professional analysis with SEO, performance, security, data leaks, and a ready-to-send client proposal.</p>
+  </div>
+
+</div>
+
+<script>
+// ── API Key management ─────────────────────────────────────────
+const KEY_STORE = 'webaudit_api_key';
+const ACTIVE = new Set(['seo','performance','security','ux','tech','content','leak']);
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem(KEY_STORE);
+  if (saved) {
+    document.getElementById('apiKeyInput').value = saved;
+    validateKey();
+  }
+});
+
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (k) localStorage.setItem(KEY_STORE, k);
+  validateKey();
+}
+
+function validateKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  const dot = document.getElementById('apiDot');
+  const banner = document.getElementById('keyBanner');
+  const isValid = k.startsWith('sk-ant-');
+  dot.className = 'api-status ' + (isValid ? 'ok' : (k.length > 0 ? 'err' : ''));
+  banner.className = 'key-banner' + (isValid ? ' hidden' : '');
+}
+
+function getKey() {
+  return document.getElementById('apiKeyInput').value.trim();
+}
+
+// ── UI helpers ─────────────────────────────────────────────────
+function toggleCheck(el) {
+  const k = el.dataset.key;
+  el.classList.toggle('active');
+  const dot = el.querySelector('.check-dot');
+  if (ACTIVE.has(k)) { ACTIVE.delete(k); dot.textContent = ''; }
+  else { ACTIVE.add(k); dot.textContent = '✓'; }
+}
+
+function switchTab(name) {
+  const names = ['audit','summary','proposal'];
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', names[i]===name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function toggleSection(hdr) {
+  const body = hdr.nextElementSibling;
+  const tog = hdr.querySelector('.section-toggle');
+  const open = body.classList.toggle('open');
+  tog.textContent = open ? '−' : '+';
+}
+
+function copyText(id) {
+  navigator.clipboard.writeText(document.getElementById(id).innerText)
+    .then(() => alert('Copied to clipboard!'))
+    .catch(() => alert('Please select and copy the text manually.'));
+}
+
+function setStatus(txt, step) {
+  document.getElementById('statusBar').style.display = 'flex';
+  document.getElementById('statusText').textContent = txt;
+  if (step !== undefined) updateSteps(step);
+}
+
+function updateSteps(current) {
+  const labels = ['Research','JSON Build','Render'];
+  document.getElementById('stepList').innerHTML = labels.map((l,i) =>
+    `<span class="step-pill ${i < current ? 'done' : i===current ? 'active' : ''}">${i < current ? '✓ ' : ''}${l}</span>`
+  ).join('');
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = '⚠ ' + msg;
+  box.style.display = 'block';
+}
+function clearError() { document.getElementById('errorBox').style.display = 'none'; }
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function scoreColor(n, isLeak) {
+  if (isLeak) return n >= 80 ? 'c-green' : n >= 50 ? 'c-orange' : 'c-red';
+  return n >= 75 ? 'c-green' : n >= 50 ? 'c-orange' : 'c-red';
+}
+function ringHex(n){ return n>=75?'#2dcc8f':n>=50?'#ff8c42':'#ff5c5c'; }
+function badgeClass(r){
+  const s=(r||'').toLowerCase();
+  if(s==='good') return 'badge-good';
+  if(s==='warning'||s==='warn') return 'badge-warning';
+  if(s==='poor'||s==='bad') return 'badge-poor';
+  return 'badge-info';
+}
+
+// ── JSON extraction (5 strategies) ────────────────────────────
+function extractJSON(raw) {
+  // 1. Direct
+  try { return JSON.parse(raw.trim()); } catch {}
+  // 2. Strip markdown fences
+  const noFence = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+  try { return JSON.parse(noFence); } catch {}
+  // 3. Slice { ... }
+  const s = raw.indexOf('{'), e = raw.lastIndexOf('}');
+  if (s === -1 || e <= s) return null;
+  const chunk = raw.slice(s, e+1);
+  try { return JSON.parse(chunk); } catch {}
+  // 4. Fix trailing commas
+  try {
+    let fix = chunk.replace(/,(\s*[}\]])/g,'$1');
+    fix = fix.replace(/"((?:[^"\\]|\\.)*)"/g, (_,m) => '"'+m.replace(/\n/g,' ').replace(/\r/g,'')+'"');
+    return JSON.parse(fix);
+  } catch {}
+  // 5. Nuclear
+  try {
+    const nuke = chunk.replace(/[\r\n]/g,' ').replace(/,(\s*[}\]])/g,'$1');
+    return JSON.parse(nuke);
+  } catch {}
+  return null;
+}
+
+// ── Claude API call ────────────────────────────────────────────
+async function claude(messages, useSearch) {
+  const key = getKey();
+  if (!key) throw new Error('No API key — paste your Anthropic key in the top-right field.');
+
+  const body = { model:'claude-sonnet-4-20250514', max_tokens:3500, messages };
+  if (useSearch) body.tools = [{ type:'web_search_20250305', name:'web_search' }];
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ error: { message: r.statusText } }));
+    const msg = err?.error?.message || r.statusText;
+    if (r.status === 401) throw new Error('Invalid API key. Check your key at console.anthropic.com');
+    if (r.status === 429) throw new Error('Rate limit hit. Wait a moment and try again.');
+    throw new Error('API error ' + r.status + ': ' + msg);
+  }
+
+  const d = await r.json();
+  return d.content.filter(b => b.type==='text').map(b => b.text).join('\n');
+}
+
+// ── Main ───────────────────────────────────────────────────────
+async function runAnalysis() {
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { alert('Please enter a website URL.'); return; }
+  if (!getKey()) { showError('Please enter your Anthropic API key in the top-right field first.'); return; }
+
+  const url = raw.startsWith('http') ? raw : 'https://'+raw;
+  let domain;
+  try { domain = new URL(url).hostname; } catch { domain = raw; }
+
+  clearError();
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultsArea').style.display = 'none';
+
+  const checks = Array.from(ACTIVE);
+
+  try {
+    // ── STEP 1: Research ──────────────────────────────────────
+    setStatus('Step 1/2 — Researching ' + domain + ' across the web…', 0);
+
+    const research = await claude([{ role:'user', content:
+      `Research the website ${url} for a professional web audit. Search for:
+1. SEO quality — meta tags, title tags, keyword usage, backlinks, Google visibility
+2. Security — SSL cert, HTTP security headers (CSP, HSTS, X-Frame-Options), known CVEs
+3. Performance — page load speed, Core Web Vitals, mobile performance score
+4. Data breaches — any known leaks, compromised data, security incidents for ${domain} or parent company
+5. Technology stack — CMS, frameworks, CDN, analytics tools detected
+6. UX & Design — mobile responsiveness, accessibility issues, user complaints
+7. Content quality — copywriting effectiveness, calls to action, content freshness
+
+Search queries to use: "${domain} website review", "${domain} security rating", "${domain} data breach leak", "${domain} page speed performance", "${domain} technology stack".
+
+Give me a detailed plain-text summary of ALL findings. Include specific numbers, dates, tool names, and named issues. Be honest and critical.`
+    }], true);
+
+    // ── STEP 2: JSON ──────────────────────────────────────────
+    setStatus('Step 2/2 — Building structured audit report…', 1);
+
+    const sectionDefs = [
+      {key:'seo',title:'SEO & Meta Tags',icon:'🔍'},
+      {key:'performance',title:'Performance & Speed',icon:'⚡'},
+      {key:'security',title:'Security',icon:'🔒'},
+      {key:'ux',title:'UX & Design',icon:'🎨'},
+      {key:'tech',title:'Technology Stack',icon:'⚙️'},
+      {key:'content',title:'Content & Copywriting',icon:'📝'},
+      {key:'leak',title:'Data Leak & Breach Detection',icon:'🚨'}
+    ].filter(s => checks.includes(s.key));
+
+    const jsonPrompt = `You are a JSON API. Respond with ONLY a valid JSON object — no markdown, no backticks, no explanation, no text before or after.
+
+Website: ${url}
+Domain: ${domain}
+
+Research findings:
+${research.slice(0,2800)}
+
+Rules:
+- Start response with { and end with }
+- All string values must be single-line (use \\n for line breaks, never real newlines inside strings)
+- Numbers are bare integers — no quotes
+- No trailing commas
+- Escape double quotes inside strings as \\"
+
+JSON structure (fill with REAL data from research):
+{
+"domain":"${domain}",
+"overall_score":65,
+"overall_grade":"C",
+"overall_verdict":"Honest 2-sentence verdict specific to ${domain}.",
+"scores":{"seo":60,"performance":55,"security":75,"ux":62,"tech":68,"content":54,"leak":80},
+"sections":[
+${sectionDefs.map(s=>`{"key":"${s.key}","title":"${s.title}","icon":"${s.icon}","rating":"Warning","summary":"One sentence specific to ${domain}.","findings":[{"type":"bad","title":"Specific issue","detail":"Specific detail found for ${domain}.","fix":"Concrete actionable fix."},{"type":"warn","title":"Another issue","detail":"Specific detail.","fix":"Specific fix."},{"type":"good","title":"What they do well","detail":"Positive finding for ${domain}.","fix":""}]}`).join(',\n')}
+],
+"quick_summary":"Overall assessment paragraph for ${domain}.\\n\\nKey technical issues paragraph.\\n\\nTop 3 recommendations paragraph.",
+"client_proposal":"Dear ${domain} Team,\\n\\nWe recently conducted a comprehensive digital audit of ${domain} and identified several high-impact improvement opportunities.\\n\\nKey Issues Found:\\n1. [Specific issue 1]\\n2. [Specific issue 2]\\n3. [Specific issue 3]\\n4. [Specific issue 4]\\n\\nBusiness Impact:\\n[Explain how these issues cost them traffic, leads, and revenue]\\n\\nOur Recommended Solutions:\\n[Specific solutions with estimated timeline]\\n\\nTimeline: 6-8 weeks | We would love to discuss this further.\\n\\nBest regards,\\nWebAudit Pro Consulting"
+}
+
+IMPORTANT: Replace ALL placeholder text with SPECIFIC findings from the research. Every finding must mention ${domain} or specific facts found. Scores must reflect actual quality.`;
+
+    const jsonRaw = await claude([{ role:'user', content: jsonPrompt }], false);
+
+    let parsed = extractJSON(jsonRaw);
+
+    // ── Retry if parse failed ─────────────────────────────────
+    if (!parsed) {
+      setStatus('Fixing response format…', 1);
+      const retryRaw = await claude([
+        { role:'user', content: jsonPrompt },
+        { role:'assistant', content: jsonRaw },
+        { role:'user', content: 'The JSON was malformed. Return ONLY the corrected JSON. Start immediately with { — absolutely no other text before or after.' }
+      ], false);
+      parsed = extractJSON(retryRaw);
+    }
+
+    if (!parsed) {
+      throw new Error('Could not parse AI response after 2 attempts. Please try again.');
+    }
+
+    setStatus('Rendering results…', 2);
+    renderResults(parsed, domain, url);
+
+  } catch(err) {
+    document.getElementById('statusBar').style.display = 'none';
+    showError(err.message);
+    btn.disabled = false;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────
+function renderResults(data, domain, url) {
+  document.getElementById('statusBar').style.display = 'none';
+  document.getElementById('resultsArea').style.display = 'block';
+  document.getElementById('analyzeBtn').disabled = false;
+
+  // Hero ring
+  const score = Math.round(Number(data.overall_score)||60);
+  const col = ringHex(score);
+  const r=40, circ=2*Math.PI*r, dash=(score/100)*circ;
+  document.getElementById('heroScore').innerHTML = `
+    <div class="ring-wrap">
+      <svg width="100" height="100" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+        <circle cx="50" cy="50" r="${r}" fill="none" stroke="${col}" stroke-width="8"
+          stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-label">
+        <div class="ring-num" style="color:${col}">${score}</div>
+        <div class="ring-sub">${esc(data.overall_grade||'')}/100</div>
+      </div>
+    </div>
+    <div class="hero-info">
+      <h2>${esc(data.domain||domain)}</h2>
+      <p style="font-family:var(--mono);font-size:12px;color:var(--text3);margin-bottom:8px">${esc(url)}</p>
+      <p style="font-size:14px;color:var(--text2);line-height:1.6">${esc(data.overall_verdict||'')}</p>
+    </div>`;
+
+  // Score cards
+  const labels={seo:'SEO',performance:'Performance',security:'Security',ux:'UX & Design',tech:'Tech',content:'Content',leak:'No Leaks'};
+  document.getElementById('scoresGrid').innerHTML = Object.entries(data.scores||{}).map(([k,v])=>{
+    const n = Math.round(Number(v)||0);
+    return `<div class="score-card"><div class="score-num ${scoreColor(n,k==='leak')}">${n}</div><div class="score-label">${esc(labels[k]||k)}</div></div>`;
+  }).join('');
+
+  // Sections
+  const container = document.getElementById('sectionsContainer');
+  container.innerHTML = '';
+  const fIcons = {good:'✅',warn:'⚠️',warning:'⚠️',bad:'❌'};
+
+  (data.sections||[]).forEach(sec => {
+    const card = document.createElement('div');
+    card.className = 'section-card';
+    const findings = (sec.findings||[]).map(f=>`
+      <div class="finding">
+        <div class="finding-icon">${fIcons[(f.type||'').toLowerCase()]||'•'}</div>
+        <div class="finding-content">
+          <div class="finding-title">${esc(f.title)}</div>
+          <div class="finding-desc">${esc(f.detail)}</div>
+          ${f.fix?`<div class="finding-fix">💡 ${esc(f.fix)}</div>`:''}
+        </div>
+      </div>`).join('');
+
+    card.innerHTML = `
+      <div class="section-header" onclick="toggleSection(this)">
+        <div class="section-title-row">
+          <span class="section-icon">${sec.icon||''}</span>
+          <span class="section-title">${esc(sec.title)}</span>
+          <span class="section-badge ${badgeClass(sec.rating)}">${esc(sec.rating)}</span>
+        </div>
+        <span class="section-toggle">+</span>
+      </div>
+      <div class="section-body">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px">${esc(sec.summary)}</p>
+        ${findings}
+      </div>`;
+    container.appendChild(card);
+
+    if (['poor','bad'].includes((sec.rating||'').toLowerCase()) || sec.key==='leak') {
+      card.querySelector('.section-body').classList.add('open');
+      card.querySelector('.section-toggle').textContent = '−';
+    }
+  });
+
+  // Report tabs
+  const now = new Date().toLocaleDateString('en-AU',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('summaryMeta').textContent = `${domain} · Analyzed ${now}`;
+  document.getElementById('summaryBody').textContent = (data.quick_summary||'').replace(/\\n/g,'\n');
+  document.getElementById('proposalMeta').textContent = `Prepared for: ${domain} · ${now}`;
+  document.getElementById('proposalBody').textContent = (data.client_proposal||'').replace(/\\n/g,'\n');
+}
+</script>
+</body>
+</html>
