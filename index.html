@@ -142,6 +142,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:15
   .hero-score{flex-direction:column;gap:16px}
   .checks-grid{grid-template-columns:1fr 1fr}
 }
+
+/* EXPORT PDF BUTTON */
+.btn-export{background:var(--green);color:#000;border:none;border-radius:10px;padding:10px 22px;font-family:var(--head);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:opacity .2s;white-space:nowrap}
+.btn-export:hover{opacity:.85}
+.export-bar{display:none;justify-content:space-between;align-items:center;margin-bottom:20px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap;gap:10px}
+.export-bar.visible{display:flex}
+.export-info{font-size:13px;color:var(--text2)}
+.export-info strong{color:var(--text)}
+
+/* PRINT STYLES */
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body{background:#0a0a0f!important;color:#f0f0f8!important}
+  .header,.key-banner,.error-box,.search-bar,.checks-grid,.status-bar,
+  .tab-bar,.btn-copy,.btn-export,.export-bar,.empty-state{display:none!important}
+  .container{max-width:100%;padding:8px 16px!important}
+  .results-area{display:block!important}
+  .tab-panel{display:block!important;page-break-before:always}
+  .tab-panel:first-child{page-break-before:avoid}
+  .section-body{display:block!important}
+  .section-toggle{display:none!important}
+  .hero-score{page-break-inside:avoid}
+  .scores-grid{page-break-inside:avoid}
+  .section-card{page-break-inside:avoid;margin-bottom:8px}
+  .report-section{page-break-inside:avoid}
+  .finding{page-break-inside:avoid}
+  .print-header{display:flex!important}
+}
+.print-header{display:none;justify-content:space-between;align-items:center;
+  padding:12px 0;margin-bottom:20px;border-bottom:2px solid #7c6fff}
 </style>
 </head>
 <body>
@@ -198,8 +228,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:15
     <div class="step-list" id="stepList"></div>
   </div>
 
+
+  <!-- EXPORT BAR -->
+  <div class="export-bar" id="exportBar">
+    <div class="print-header" style="display:flex;align-items:center;gap:12px">
+      <div style="font-family:var(--head);font-size:16px;font-weight:800">WebAudit Pro</div>
+      <div class="export-info">Results ready — <strong id="exportDomain"></strong></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn-export" onclick="exportPDF()">📄 Export PDF</button>
+      <button class="btn-copy" onclick="exportJSON()" style="margin-top:0">💾 Save JSON</button>
+    </div>
+  </div>
+
   <!-- RESULTS -->
   <div class="results-area" id="resultsArea">
+    <div class="print-header" id="printHeader">
+      <div>
+        <div style="font-family:var(--head);font-size:18px;font-weight:800;color:#7c6fff">WebAudit Pro</div>
+        <div style="font-size:11px;color:#9090a8;font-family:var(--mono)" id="printMeta"></div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#5a5a72;font-family:var(--mono)">Confidential Audit Report</div>
+    </div>
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('audit')">Audit Report</button>
       <button class="tab-btn" onclick="switchTab('summary')">Quick Summary</button>
@@ -363,7 +413,7 @@ async function claude(messages, useSearch) {
   const key = getKey();
   if (!key) throw new Error('No API key — paste your Anthropic key in the top-right field.');
 
-  const body = { model:'claude-sonnet-4-20250514', max_tokens:3500, messages };
+  const body = { model:'claude-sonnet-4-6', max_tokens:3500, messages };
   if (useSearch) body.tools = [{ type:'web_search_20250305', name:'web_search' }];
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -501,6 +551,8 @@ IMPORTANT: Replace ALL placeholder text with SPECIFIC findings from the research
 
 // ── Render ─────────────────────────────────────────────────────
 function renderResults(data, domain, url) {
+  _auditData = data;
+  showExportBar(domain, url);
   document.getElementById('statusBar').style.display = 'none';
   document.getElementById('resultsArea').style.display = 'block';
   document.getElementById('analyzeBtn').disabled = false;
@@ -580,6 +632,45 @@ function renderResults(data, domain, url) {
   document.getElementById('proposalMeta').textContent = `Prepared for: ${domain} · ${now}`;
   document.getElementById('proposalBody').textContent = (data.client_proposal||'').replace(/\\n/g,'\n');
 }
+
+// ── Export functions ──────────────────────────────────────────
+let _auditData = null;
+let _auditDomain = '';
+let _auditUrl = '';
+
+function showExportBar(domain, url) {
+  _auditDomain = domain;
+  _auditUrl = url;
+  const bar = document.getElementById('exportBar');
+  bar.classList.add('visible');
+  document.getElementById('exportDomain').textContent = domain;
+  document.getElementById('printMeta').textContent = domain + '  |  Analyzed ' + new Date().toLocaleDateString('en-AU',{year:'numeric',month:'long',day:'numeric'});
+}
+
+function exportPDF() {
+  // Open all sections before printing
+  document.querySelectorAll('.section-body').forEach(b => b.classList.add('open'));
+  document.querySelectorAll('.section-toggle').forEach(t => t.textContent = '-');
+  
+  // Set print title
+  const origTitle = document.title;
+  document.title = 'WebAudit Pro - ' + _auditDomain + ' - ' + new Date().toLocaleDateString('en-AU');
+  
+  setTimeout(() => {
+    window.print();
+    document.title = origTitle;
+  }, 300);
+}
+
+function exportJSON() {
+  if (!_auditData) { alert('No audit data to save.'); return; }
+  const blob = new Blob([JSON.stringify(_auditData, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'webaudit-' + _auditDomain.replace(/\./g,'-') + '-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+
 </script>
 </body>
 </html>
