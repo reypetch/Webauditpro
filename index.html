@@ -184,8 +184,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:15
       <div class="api-status" id="apiDot"></div>
       <span class="api-key-label">API Key:</span>
       <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-..." onchange="saveKey()" oninput="validateKey()" autocomplete="off" />
+      <button onclick="clearKey()" title="Clear saved key" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;line-height:1">✕</button>
     </div>
-    <div class="header-tag">v2.1</div>
+    <div class="header-tag" id="versionTag">v2.2</div>
   </div>
 </div>
 
@@ -196,7 +197,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);font-size:15
     <div class="key-banner-icon">🔑</div>
     <div class="key-banner-text">
       <h3>Anthropic API Key Required</h3>
-      <p>Paste your API key in the top-right field to get started. Get one free at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Your key is stored only in your browser (localStorage) and never sent anywhere except directly to Anthropic.</p>
+      <p>Paste your API key in the top-right field. Get one at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys. Key is saved in your browser only.</p>
+      <p style="margin-top:8px"><button onclick="testKey()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:var(--mono)">Test API Key →</button> <span style="font-size:12px;color:var(--text3);margin-left:8px">Click to verify your key works</span></p>
     </div>
   </div>
 
@@ -302,21 +304,65 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function saveKey() {
   const k = document.getElementById('apiKeyInput').value.trim();
-  if (k) localStorage.setItem(KEY_STORE, k);
+  if (k) {
+    localStorage.setItem(KEY_STORE, k);
+    console.log('[WebAudit] API key saved, length:', k.length, 'prefix:', k.slice(0,12)+'...');
+  }
   validateKey();
+}
+
+function clearKey() {
+  localStorage.removeItem(KEY_STORE);
+  document.getElementById('apiKeyInput').value = '';
+  validateKey();
+  clearError();
+  showError('API key cleared. Paste your new key from console.anthropic.com');
 }
 
 function validateKey() {
   const k = document.getElementById('apiKeyInput').value.trim();
   const dot = document.getElementById('apiDot');
   const banner = document.getElementById('keyBanner');
-  const isValid = k.startsWith('sk-ant-');
+  const isValid = k.length > 20 && k.startsWith('sk-ant-');
   dot.className = 'api-status ' + (isValid ? 'ok' : (k.length > 0 ? 'err' : ''));
   banner.className = 'key-banner' + (isValid ? ' hidden' : '');
 }
 
 function getKey() {
-  return document.getElementById('apiKeyInput').value.trim();
+  const k = document.getElementById('apiKeyInput').value.trim();
+  // Also try localStorage as fallback
+  return k || localStorage.getItem(KEY_STORE) || '';
+}
+
+async function testKey() {
+  const key = getKey();
+  if (!key) { showError('No API key found. Please paste your key.'); return; }
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'Hi' }]
+      })
+    });
+    if (r.ok) {
+      clearError();
+      document.getElementById('apiDot').className = 'api-status ok';
+      alert('API key valid and working!');
+    } else {
+      const err = await r.json().catch(()=>({error:{message:r.statusText}}));
+      showError('Key test failed ' + r.status + ': ' + (err?.error?.message || r.statusText));
+    }
+  } catch(e) {
+    showError('Connection error: ' + e.message);
+  }
 }
 
 // ── UI helpers ─────────────────────────────────────────────────
@@ -430,7 +476,7 @@ async function claude(messages, useSearch) {
   if (!r.ok) {
     const err = await r.json().catch(() => ({ error: { message: r.statusText } }));
     const msg = err?.error?.message || r.statusText;
-    if (r.status === 401) throw new Error('Invalid API key. Check your key at console.anthropic.com');
+    if (r.status === 401) throw new Error('API key rejected (401). Try: 1) Click ✕ to clear old key, 2) Paste fresh key from console.anthropic.com, 3) Click "Test API Key" to verify.');
     if (r.status === 429) throw new Error('Rate limit hit. Wait a moment and try again.');
     throw new Error('API error ' + r.status + ': ' + msg);
   }
@@ -674,3 +720,4 @@ function exportJSON() {
 </script>
 </body>
 </html>
+
