@@ -485,15 +485,40 @@ async function claude(messages, useSearch) {
   return d.content.filter(b => b.type==='text').map(b => b.text).join('\n');
 }
 
+// ── Small API call helper (capped tokens) ──────────────────────
+async function claudeSmall(prompt, maxTok) {
+  const key = getKey();
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTok,
+      messages: [{role:'user', content: prompt}]
+    })
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(()=>({error:{message:r.statusText}}));
+    throw new Error('API ' + r.status + ': ' + (e?.error?.message||r.statusText));
+  }
+  const d = await r.json();
+  return d.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+}
+
 // ── Main ───────────────────────────────────────────────────────
 async function runAnalysis() {
-  const raw = document.getElementById('urlInput').value.trim();
-  if (!raw) { alert('Please enter a website URL.'); return; }
-  if (!getKey()) { showError('Please enter your Anthropic API key in the top-right field first.'); return; }
+  const rawInput = document.getElementById('urlInput').value.trim();
+  if (!rawInput) { alert('Please enter a website URL.'); return; }
+  if (!getKey()) { showError('Please enter your Anthropic API key first.'); return; }
 
-  const url = raw.startsWith('http') ? raw : 'https://'+raw;
+  const url = rawInput.startsWith('http') ? rawInput : 'https://'+rawInput;
   let domain;
-  try { domain = new URL(url).hostname; } catch { domain = raw; }
+  try { domain = new URL(url).hostname; } catch { domain = rawInput; }
 
   clearError();
   const btn = document.getElementById('analyzeBtn');
@@ -502,63 +527,63 @@ async function runAnalysis() {
   document.getElementById('resultsArea').style.display = 'none';
 
   const checks = Array.from(ACTIVE);
+  const sectionKeys = ['seo','performance','security','ux','tech','content','leak'].filter(k=>checks.includes(k));
+  const secTitles = {seo:'SEO & Meta Tags',performance:'Performance & Speed',security:'Security',ux:'UX & Design',tech:'Technology Stack',content:'Content & Copywriting',leak:'Data Leak Detection'};
+  const secIcons = {seo:'🔍',performance:'⚡',security:'🔒',ux:'🎨',tech:'⚙️',content:'📝',leak:'🚨'};
 
   try {
-    setStatus('Analyzing ' + domain + '...', 0);
+    // CALL 1 — Scores only (small JSON ~300 chars)
+    setStatus('Step 1/' + (sectionKeys.length+2) + ' — Scoring ' + domain + '...', 0);
+    const p1 = 'Analyze website ' + domain + '. Return ONLY valid JSON, nothing else:\n' +
+      '{"domain":"' + domain + '","overall_score":65,"overall_grade":"C","overall_verdict":"Specific verdict about ' + domain + '.","scores":{"seo":60,"performance":55,"security":70,"ux":62,"tech":65,"content":52,"leak":82}}';
+    const r1 = await claudeSmall(p1, 350);
+    console.log('[WA] Scores raw:', r1.slice(0,80));
+    const scores = extractJSON(r1);
+    if (!scores) throw new Error('Scores parse failed. Response was: ' + r1.slice(0,150));
 
-    const sectionKeys = ['seo','performance','security','ux','tech','content','leak'].filter(k=>checks.includes(k));
+    // CALL 2 — Each section separately (small JSON per section)
+    const sections = [];
+    for (let i = 0; i < sectionKeys.length; i++) {
+      const k = sectionKeys[i];
+      setStatus('Step ' + (i+2) + '/' + (sectionKeys.length+2) + ' — ' + secTitles[k] + '...', 1);
+      const p2 = 'Audit ' + domain + ' for ' + secTitles[k] + '. Return ONLY valid JSON:\n' +
+        '{"key":"' + k + '","title":"' + secTitles[k] + '","rating":"Warning","summary":"Specific finding for ' + domain + '.","findings":[' +
+        '{"type":"bad","title":"Issue","detail":"Specific problem on ' + domain + '.","fix":"Fix action."},' +
+        '{"type":"warn","title":"Warning","detail":"Issue detail.","fix":"Fix."},' +
+        '{"type":"good","title":"Positive","detail":"Something good about ' + domain + '.","fix":""}]}';
+      const r2 = await claudeSmall(p2, 450);
+      console.log('[WA] Section', k, ':', r2.slice(0,50));
+      const sec = extractJSON(r2);
+      if (sec) { sec.icon = secIcons[k]||''; sections.push(sec); }
+      else { sections.push({key:k,title:secTitles[k],rating:'Warning',icon:secIcons[k]||'',summary:'Analysis unavailable.',findings:[{type:'warn',title:'Unavailable',detail:'Could not parse this section.',fix:'Try again.'}]}); }
+    }
 
-    const sectionMeta = {
-      seo:{t:'SEO & Meta Tags'},
-      performance:{t:'Performance & Speed'},
-      security:{t:'Security'},
-      ux:{t:'UX & Design'},
-      tech:{t:'Technology Stack'},
-      content:{t:'Content & Copywriting'},
-      leak:{t:'Data Leak Detection'}
+    // CALL 3 — Summary + Proposal (plain text, no JSON needed)
+    setStatus('Step ' + (sectionKeys.length+2) + '/' + (sectionKeys.length+2) + ' — Writing report...', 2);
+    const p3 = 'You audited ' + domain + '. Scores: ' + JSON.stringify(scores.scores) + '.\n' +
+      'Write EXACTLY two sections separated by ---PROPOSAL--- with no other markers:\n' +
+      'Section 1: 3-paragraph executive summary about ' + domain + '\n' +
+      '---PROPOSAL---\n' +
+      'Section 2: Professional proposal letter to ' + domain + ' (specific issues, solutions, 6-8 week timeline)';
+    const r3 = await claudeSmall(p3, 800);
+    const parts = r3.split('---PROPOSAL---');
+
+    const finalData = {
+      domain: scores.domain||domain,
+      overall_score: scores.overall_score||60,
+      overall_grade: scores.overall_grade||'C',
+      overall_verdict: scores.overall_verdict||'',
+      scores: scores.scores||{},
+      sections: sections,
+      quick_summary: (parts[0]||'').trim(),
+      client_proposal: (parts[1]||'').trim()
     };
 
-    const sectionsTemplate = sectionKeys.map(k =>
-      `{"key":"${k}","title":"${sectionMeta[k].t}","rating":"Warning","icon":"","summary":"Summary for ${domain}.","findings":[{"type":"bad","title":"Issue title","detail":"Specific detail about ${domain}.","fix":"Concrete fix."},{"type":"warn","title":"Warning item","detail":"Specific detail.","fix":"Fix action."},{"type":"good","title":"Positive finding","detail":"Something ${domain} does well.","fix":""}]}`
-    ).join(',');
-
-    const prompt = [
-      'You are a website audit expert. Analyze: ' + domain,
-      '',
-      'Return ONLY a JSON object. Start with { end with }. Zero other text.',
-      'Rules: single-line strings only, integers not strings for scores, no trailing commas.',
-      'Use \\n for newlines inside summary/proposal strings.',
-      '',
-      'Template to fill:',
-      '{"domain":"' + domain + '","overall_score":62,"overall_grade":"C","overall_verdict":"Two sentence verdict.","scores":{"seo":55,"performance":50,"security":70,"ux":58,"tech":65,"content":52,"leak":82},"sections":[' + sectionsTemplate + '],"quick_summary":"Para 1.\\n\\nPara 2.\\n\\nPara 3.","client_proposal":"Dear Team,\\n\\nWe audited ' + domain + '.\\n\\nIssues:\\n1. Issue\\n2. Issue\\n3. Issue\\n\\nBest regards,\\nWebAudit Pro"}',
-      '',
-      'Replace ALL placeholder text with real specific analysis of ' + domain + '. Be accurate and detailed.'
-    ].join('\n');
-
-    const raw = await claude([{role:'user', content: prompt}], false);
-    console.log('[WebAudit] Response length:', raw.length, 'starts with:', raw.trim().slice(0,30));
-
-    let parsed = extractJSON(raw);
-
-    if (!parsed) {
-      setStatus('Retrying with fix...', 1);
-      const raw2 = await claude([
-        {role:'user', content: prompt},
-        {role:'assistant', content: raw.slice(0,200)},
-        {role:'user', content: 'JSON invalid. Fix and return ONLY the JSON starting with {. Nothing else.'}
-      ], false);
-      parsed = extractJSON(raw2);
-      console.log('[WebAudit] Retry parsed:', !!parsed);
-    }
-
-    if (!parsed) {
-      throw new Error('JSON parse failed after 2 attempts. Check console (F12) for details.');
-    }
-
-    renderResults(parsed, domain, url);
+    console.log('[WA] Done! Sections:', sections.length, 'Summary len:', (parts[0]||'').length);
+    renderResults(finalData, domain, url);
 
   } catch(err) {
-    console.error('[WebAudit] Error:', err);
+    console.error('[WA] Error:', err);
     document.getElementById('statusBar').style.display = 'none';
     showError(err.message);
     btn.disabled = false;
@@ -691,5 +716,6 @@ function exportJSON() {
 </script>
 </body>
 </html>
+
 
 
