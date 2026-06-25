@@ -504,96 +504,67 @@ async function runAnalysis() {
   const checks = Array.from(ACTIVE);
 
   try {
-    // ── STEP 1: Research ──────────────────────────────────────
-    setStatus('Step 1/2 — Researching ' + domain + ' across the web…', 0);
+    setStatus('Analyzing ' + domain + '...', 0);
 
-    const research = await claude([{ role:'user', content:
-      `Research the website ${url} for a professional web audit. Search for:
-1. SEO quality — meta tags, title tags, keyword usage, backlinks, Google visibility
-2. Security — SSL cert, HTTP security headers (CSP, HSTS, X-Frame-Options), known CVEs
-3. Performance — page load speed, Core Web Vitals, mobile performance score
-4. Data breaches — any known leaks, compromised data, security incidents for ${domain} or parent company
-5. Technology stack — CMS, frameworks, CDN, analytics tools detected
-6. UX & Design — mobile responsiveness, accessibility issues, user complaints
-7. Content quality — copywriting effectiveness, calls to action, content freshness
+    const sectionKeys = ['seo','performance','security','ux','tech','content','leak'].filter(k=>checks.includes(k));
 
-Search queries to use: "${domain} website review", "${domain} security rating", "${domain} data breach leak", "${domain} page speed performance", "${domain} technology stack".
+    const sectionMeta = {
+      seo:{t:'SEO & Meta Tags'},
+      performance:{t:'Performance & Speed'},
+      security:{t:'Security'},
+      ux:{t:'UX & Design'},
+      tech:{t:'Technology Stack'},
+      content:{t:'Content & Copywriting'},
+      leak:{t:'Data Leak Detection'}
+    };
 
-Give me a detailed plain-text summary of ALL findings. Include specific numbers, dates, tool names, and named issues. Be honest and critical.`
-    }], true);
+    const sectionsTemplate = sectionKeys.map(k =>
+      `{"key":"${k}","title":"${sectionMeta[k].t}","rating":"Warning","icon":"","summary":"Summary for ${domain}.","findings":[{"type":"bad","title":"Issue title","detail":"Specific detail about ${domain}.","fix":"Concrete fix."},{"type":"warn","title":"Warning item","detail":"Specific detail.","fix":"Fix action."},{"type":"good","title":"Positive finding","detail":"Something ${domain} does well.","fix":""}]}`
+    ).join(',');
 
-    // ── STEP 2: JSON ──────────────────────────────────────────
-    setStatus('Step 2/2 — Building structured audit report…', 1);
+    const prompt = [
+      'You are a website audit expert. Analyze: ' + domain,
+      '',
+      'Return ONLY a JSON object. Start with { end with }. Zero other text.',
+      'Rules: single-line strings only, integers not strings for scores, no trailing commas.',
+      'Use \\n for newlines inside summary/proposal strings.',
+      '',
+      'Template to fill:',
+      '{"domain":"' + domain + '","overall_score":62,"overall_grade":"C","overall_verdict":"Two sentence verdict.","scores":{"seo":55,"performance":50,"security":70,"ux":58,"tech":65,"content":52,"leak":82},"sections":[' + sectionsTemplate + '],"quick_summary":"Para 1.\\n\\nPara 2.\\n\\nPara 3.","client_proposal":"Dear Team,\\n\\nWe audited ' + domain + '.\\n\\nIssues:\\n1. Issue\\n2. Issue\\n3. Issue\\n\\nBest regards,\\nWebAudit Pro"}',
+      '',
+      'Replace ALL placeholder text with real specific analysis of ' + domain + '. Be accurate and detailed.'
+    ].join('\n');
 
-    const sectionDefs = [
-      {key:'seo',title:'SEO & Meta Tags',icon:'🔍'},
-      {key:'performance',title:'Performance & Speed',icon:'⚡'},
-      {key:'security',title:'Security',icon:'🔒'},
-      {key:'ux',title:'UX & Design',icon:'🎨'},
-      {key:'tech',title:'Technology Stack',icon:'⚙️'},
-      {key:'content',title:'Content & Copywriting',icon:'📝'},
-      {key:'leak',title:'Data Leak & Breach Detection',icon:'🚨'}
-    ].filter(s => checks.includes(s.key));
+    const raw = await claude([{role:'user', content: prompt}], false);
+    console.log('[WebAudit] Response length:', raw.length, 'starts with:', raw.trim().slice(0,30));
 
-    const jsonPrompt = `You are a JSON API. Respond with ONLY a valid JSON object — no markdown, no backticks, no explanation, no text before or after.
+    let parsed = extractJSON(raw);
 
-Website: ${url}
-Domain: ${domain}
-
-Research findings:
-${research.slice(0,2800)}
-
-Rules:
-- Start response with { and end with }
-- All string values must be single-line (use \\n for line breaks, never real newlines inside strings)
-- Numbers are bare integers — no quotes
-- No trailing commas
-- Escape double quotes inside strings as \\"
-
-JSON structure (fill with REAL data from research):
-{
-"domain":"${domain}",
-"overall_score":65,
-"overall_grade":"C",
-"overall_verdict":"Honest 2-sentence verdict specific to ${domain}.",
-"scores":{"seo":60,"performance":55,"security":75,"ux":62,"tech":68,"content":54,"leak":80},
-"sections":[
-${sectionDefs.map(s=>`{"key":"${s.key}","title":"${s.title}","icon":"${s.icon}","rating":"Warning","summary":"One sentence specific to ${domain}.","findings":[{"type":"bad","title":"Specific issue","detail":"Specific detail found for ${domain}.","fix":"Concrete actionable fix."},{"type":"warn","title":"Another issue","detail":"Specific detail.","fix":"Specific fix."},{"type":"good","title":"What they do well","detail":"Positive finding for ${domain}.","fix":""}]}`).join(',\n')}
-],
-"quick_summary":"Overall assessment paragraph for ${domain}.\\n\\nKey technical issues paragraph.\\n\\nTop 3 recommendations paragraph.",
-"client_proposal":"Dear ${domain} Team,\\n\\nWe recently conducted a comprehensive digital audit of ${domain} and identified several high-impact improvement opportunities.\\n\\nKey Issues Found:\\n1. [Specific issue 1]\\n2. [Specific issue 2]\\n3. [Specific issue 3]\\n4. [Specific issue 4]\\n\\nBusiness Impact:\\n[Explain how these issues cost them traffic, leads, and revenue]\\n\\nOur Recommended Solutions:\\n[Specific solutions with estimated timeline]\\n\\nTimeline: 6-8 weeks | We would love to discuss this further.\\n\\nBest regards,\\nWebAudit Pro Consulting"
-}
-
-IMPORTANT: Replace ALL placeholder text with SPECIFIC findings from the research. Every finding must mention ${domain} or specific facts found. Scores must reflect actual quality.`;
-
-    const jsonRaw = await claude([{ role:'user', content: jsonPrompt }], false);
-
-    let parsed = extractJSON(jsonRaw);
-
-    // ── Retry if parse failed ─────────────────────────────────
     if (!parsed) {
-      setStatus('Fixing response format…', 1);
-      const retryRaw = await claude([
-        { role:'user', content: jsonPrompt },
-        { role:'assistant', content: jsonRaw },
-        { role:'user', content: 'The JSON was malformed. Return ONLY the corrected JSON. Start immediately with { — absolutely no other text before or after.' }
+      setStatus('Retrying with fix...', 1);
+      const raw2 = await claude([
+        {role:'user', content: prompt},
+        {role:'assistant', content: raw.slice(0,200)},
+        {role:'user', content: 'JSON invalid. Fix and return ONLY the JSON starting with {. Nothing else.'}
       ], false);
-      parsed = extractJSON(retryRaw);
+      parsed = extractJSON(raw2);
+      console.log('[WebAudit] Retry parsed:', !!parsed);
     }
 
     if (!parsed) {
-      throw new Error('Could not parse AI response after 2 attempts. Please try again.');
+      throw new Error('JSON parse failed after 2 attempts. Check console (F12) for details.');
     }
 
-    setStatus('Rendering results…', 2);
     renderResults(parsed, domain, url);
 
   } catch(err) {
+    console.error('[WebAudit] Error:', err);
     document.getElementById('statusBar').style.display = 'none';
     showError(err.message);
     btn.disabled = false;
   }
 }
+
 
 // ── Render ─────────────────────────────────────────────────────
 function renderResults(data, domain, url) {
@@ -720,4 +691,5 @@ function exportJSON() {
 </script>
 </body>
 </html>
+
 
